@@ -60,10 +60,7 @@ class Puzzle_Logic {
 
         return distance
     }
-
-    // ==========================================
-    // 6️⃣ Verificar si ganó
-    // ==========================================
+    
     fun isSolved(board: List<Int?>): Boolean {
 
         return board == createGrid()
