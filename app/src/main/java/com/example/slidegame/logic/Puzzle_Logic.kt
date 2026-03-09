@@ -4,7 +4,7 @@ import kotlin.math.abs
 
 class Puzzle_Logic {
     fun createGrid(n: Int): List<Int?> {
-        val grid = MutableList<Int?>(n*n){it+1}
+        val grid = MutableList<Int?>(n*n){if(it == (n*n)-1) 0 else it+1}
         return grid
     }
 
@@ -13,7 +13,7 @@ class Puzzle_Logic {
         return shuffled
     }
 
-    fun isValidMove(i1: Int, i2: Int, n: Int): Boolean {
+    fun isValidMove(i1: Int, i2: Int, n: Int, value: Int?): Boolean {
 
         val r1 = i1 / n
         val c1 = i1 % n
@@ -21,8 +21,8 @@ class Puzzle_Logic {
         val r2 = i2 / n
         val c2 = i2 % n
 
-        return (r1 == r2 && abs(c1 - c2) == 1) ||
-                (c1 == c2 && abs(r1 - r2) == 1)
+        return (r1 == r2 && abs(c1 - c2) == 1 && value==0) ||
+                (c1 == c2 && abs(r1 - r2) == 1 && value==0)
     }
 
     fun swap(board: List<Int?>, i1: Int, i2: Int): List<Int?> {
@@ -52,6 +52,7 @@ class Puzzle_Logic {
                 //distancia entre la posicion correcta y la actual (suma de todos los valores)
                 distance += abs(correctRow - currentRow) +
                         abs(correctCol - currentCol)
+
             }
         }
 

@@ -137,7 +137,7 @@ fun Slider() {
 
                         } else{
 
-                            if (logic.isValidMove(selectedIndex!!, index,dimension)) {
+                            if (logic.isValidMove(selectedIndex!!, index,dimension,board.elementAt(index))) {
 
                                 board = logic.swap(board, selectedIndex!!, index)
 
@@ -236,7 +236,7 @@ fun PuzzleCell(
         contentAlignment = Alignment.Center
     ) {
 
-        if (value != null) {
+        if (value != 0) {
 
             Text(
                 text = value.toString(),
