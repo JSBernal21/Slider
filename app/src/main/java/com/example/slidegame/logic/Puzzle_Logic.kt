@@ -9,8 +9,40 @@ class Puzzle_Logic {
     }
 
     fun shuffleGrid(n: Int): List<Int?> {
-        val shuffled: List<Int?> = createGrid(n).shuffled()
+        var shuffled: List<Int?>
+        do {
+            shuffled = createGrid(n).shuffled()
+        }while (!isSolvable(shuffled,n))
         return shuffled
+    }
+
+    // Verifica si el puzzle es resoluble
+
+    private fun isSolvable(board: List<Int?>, n: Int): Boolean {
+
+        val numbers = board.filter{it !=0}
+        var inversions = 0
+
+        for (i in numbers.indices) {
+            for (j in i + 1 until numbers.size) {
+                numbers[i]?.let {
+                    if (it > numbers[j]!!) {
+                        inversions++
+                    }
+                }
+            }
+        }
+
+        // caso tablero impar (3x3,5x5...)
+        if (n % 2 != 0) {
+            return inversions % 2 == 0
+        }
+
+        // caso tablero par (4x4,6x6...)
+        val blankIndex = board.indexOf(0)
+        val blankRowFromBottom = n - (blankIndex / n)
+
+        return (blankRowFromBottom + inversions) % 2 == 1
     }
 
     fun isValidMove(i1: Int, i2: Int, n: Int, value: Int?): Boolean {
@@ -36,7 +68,7 @@ class Puzzle_Logic {
         return newBoard
     }
 
-    fun calculateMinimumMoves(board: List<Int?>, n: Int): Int {
+    fun calculateMinimumMoves(board: List<Int?>, n: Int): Int {//https://www.dcode.fr/sliding-puzzle-solver -- Manhattan Method
 
         var distance = 0
 
@@ -56,7 +88,7 @@ class Puzzle_Logic {
             }
         }
 
-        return distance
+        return distance+distance/n//margen de error humano
     }
 
     fun isSolved(board: List<Int?>, n: Int): Boolean {

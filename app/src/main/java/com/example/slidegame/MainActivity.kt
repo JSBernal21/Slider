@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,13 +57,13 @@ fun Slider() {
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
-    var moves by remember { mutableStateOf(0) }
+    var moves by remember { mutableIntStateOf(0) }
 
-    var goal by remember { mutableStateOf(0) }
+    var goal by remember { mutableIntStateOf(0) }
 
     var expanded by remember { mutableStateOf(false) }
     val items = listOf("3x3", "4x4", "5x5","6x6")
-    var dimension by remember { mutableStateOf(0) }
+    var dimension by remember { mutableIntStateOf(0) }
 
     when (gameState){
         GameStateEnum.START -> {
