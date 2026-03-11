@@ -1,713 +1,126 @@
-package com.example.slidegame
+package com.example.slidegame.logic
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.slidegame.logic.GameStateEnum
-import com.example.slidegame.logic.Puzzle_Logic
-import com.example.slidegame.ui.theme.SlideGameTheme
+import kotlin.math.abs
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            SlideGameTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    SliderGame()
-                }
-            }
-        }
+class Puzzle_Logic {
+    fun createGrid(n: Int): List<Int?> {
+        val grid = MutableList<Int?>(n*n){if(it == (n*n)-1) 0 else it+1}
+        return grid
     }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SliderGame() {
-    val logic = remember { Puzzle_Logic() }
-    var gameState by remember { mutableStateOf(GameStateEnum.START) }
-    var board by remember { mutableStateOf(logic.createGrid(0)) }
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
-    var moves by remember { mutableIntStateOf(0) }
-    var goal by remember { mutableIntStateOf(0) }
-    var expanded by remember { mutableStateOf(false) }
-
-    val items = listOf("3x3", "4x4", "5x5", "6x6")
-    var dimension by remember { mutableIntStateOf(0) }
-
-    // Animación de entrada
-    val enterTransition = fadeIn(animationSpec = tween(500)) +
-            slideInVertically(animationSpec = tween(500))
-
-    Scaffold(
-        topBar = {
-            if (gameState != GameStateEnum.START) {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "Slide Puzzle",
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (gameState) {
-                GameStateEnum.START -> StartScreen(
-                    items = items,
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
-                    dimension = dimension,
-                    onDimensionSelect = { dimension = it },
-                    onStartClick = {
-                        board = logic.createGrid(dimension)
-                        board = logic.shuffleGrid(dimension)
-                        goal = logic.calculateMinimumMoves(board, dimension)
-                        gameState = GameStateEnum.PLAYING
-                    }
-                )
-
-                GameStateEnum.PLAYING -> PlayingScreen(
-                    moves = moves,
-                    goal = goal,
-                    dimension = dimension,
-                    board = board,
-                    selectedIndex = selectedIndex,
-                    onCellClick = { index ->
-                        if (selectedIndex == null) {
-                            selectedIndex = index
-                        } else {
-                            if (logic.isValidMove(selectedIndex!!, index, dimension, board.elementAt(index))) {
-                                board = logic.swap(board, selectedIndex!!, index)
-                                moves++
-                            }
-                            selectedIndex = null
-                        }
-                    },
-                    onResetClick = {
-                        board = logic.shuffleGrid(dimension)
-                        goal = logic.calculateMinimumMoves(board, dimension)
-                        moves = 0
-                    },
-                    onFinishClick = {
-                        gameState = GameStateEnum.START
-                        moves = 0
-                    }
-                )
-
-                GameStateEnum.FINISH -> FinishScreen(
-                    moves = moves,
-                    goal = goal,
-                    onNewGameClick = {
-                        moves = 0
-                        gameState = GameStateEnum.START
-                    }
-                )
-            }
-        }
+    fun shuffleGrid(n: Int): List<Int?> {
+        var shuffled: List<Int?>
+        do {
+            shuffled = createGrid(n).shuffled()
+        }while (!isSolvable(shuffled,n))
+        return shuffled
     }
-}
 
-@Composable
-fun StartScreen(
-    items: List<String>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    dimension: Int,
-    onDimensionSelect: (Int) -> Unit,
-    onStartClick: () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "float")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = EaseInOutCubic),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
-    )
+    // Verifica si el puzzle es resoluble
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
-                    )
-                )
-            )
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Icono animado
-        Box(
-            modifier = Modifier
-                .size(120.dp)
-                .scale(scale)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary
-                        )
-                    ),
-                    shape = RoundedCornerShape(24.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = null,
-                modifier = Modifier.size(60.dp),
-                tint = Color.White
-            )
-        }
+    private fun isSolvable(board: List<Int?>, n: Int): Boolean {
 
-        Spacer(modifier = Modifier.height(32.dp))
+        val numbers = board.filter{it !=0}
+        var inversions = 0
 
-        Text(
-            text = "Slide Puzzle",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Creado por Oscar Gonzales y Jonathan Bernal",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        // Selector de dificultad mejorado
-        Card(
-            modifier = Modifier.fillMaxWidth(0.8f),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Selecciona la dificultad",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { onExpandedChange(true) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(
-                            width = 2.dp
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (dimension == 0) "Seleccionar..." else "${dimension}x${dimension}",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = null
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { onExpandedChange(false) },
-                        modifier = Modifier.fillMaxWidth(0.8f)
-                    ) {
-                        items.forEachIndexed { index, item ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = item,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                },
-                                onClick = {
-                                    onDimensionSelect(index + 3)
-                                    onExpandedChange(false)
-                                },
-                                leadingIcon = {
-                                    Text(
-                                        text = "🔢",
-                                        fontSize = 20.sp
-                                    )
-                                }
-                            )
-                        }
+        for (i in numbers.indices) {
+            for (j in i + 1 until numbers.size) {
+                numbers[i]?.let {
+                    if (it > numbers[j]!!) {
+                        inversions++
                     }
                 }
+            }
+        }
 
-                if (dimension > 0) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Dificultad: ${dimension}x${dimension}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+        // caso tablero impar (3x3,5x5...)
+        if (n % 2 != 0) {
+            return inversions % 2 == 0
+        }
+
+        // caso tablero par (4x4,6x6...)
+        val blankIndex = board.indexOf(0)
+        val blankRowFromBottom = n - (blankIndex / n)
+
+        return (blankRowFromBottom + inversions) % 2 == 1
+    }
+
+    fun isValidMove(i1: Int, i2: Int, n: Int, value: Int?): Boolean {
+
+        val r1 = i1 / n
+        val c1 = i1 % n
+
+        val r2 = i2 / n
+        val c2 = i2 % n
+
+        return (r1 == r2 && abs(c1 - c2) == 1 && value==0) ||
+                (c1 == c2 && abs(r1 - r2) == 1 && value==0)
+    }
+
+    fun swap(board: List<Int?>, i1: Int, i2: Int): List<Int?> {
+
+        val newBoard = board.toMutableList()
+
+        val temp = newBoard[i1]
+        newBoard[i1] = newBoard[i2]
+        newBoard[i2] = temp
+
+        return newBoard
+    }
+
+    fun calculateMinimumMoves(board: List<Int?>, n: Int): Int {//https://www.dcode.fr/sliding-puzzle-solver ideas algoritmo
+
+        var manhattan = 0
+        var conflict = 0
+
+        board.forEachIndexed { index, value ->
+
+            if (value != null && value != 0) {
+
+                val correctRow = (value - 1) / n
+                val correctCol = (value - 1) % n
+
+                val currentRow = index / n
+                val currentCol = index % n
+
+                manhattan += abs(correctRow - currentRow) +
+                        abs(correctCol - currentCol)
+            }
+        }
+
+        // Linear conflict filas
+        //---------------------------------------- recorremos cada valor de mi lista-talero
+        for (row in 0 until n) {
+            for (col1 in 0 until n) {
+                //----------------------------------------
+                val i1 = row * n + col1// se calcula la posicion (ficha)
+                val v1 = board[i1] ?: continue // guardamos el valor de la ficha
+                if (v1 == 0) continue // ignora el valor null (0)
+                //-------------------------------- calculamos donde esta
+                val goalRow1 = (v1 - 1) / n //fila
+                val goalCol1 = (v1 - 1) % n //columna
+                //------------------------------------
+                if (goalRow1 != row) continue // si no le pertenece a esa fila lo ignora
+                //------------------------------------ comparacion con otra ficha de la misma columna
+                for (col2 in col1 + 1 until n) {
+                    val i2 = row * n + col2 // obtenemos la posicion de la segunda ficha y su valor
+                    val v2 = board[i2] ?: continue
+                    if (v2 == 0) continue
+
+                    val goalRow2 = (v2 - 1) / n //donde deberia estar
+                    val goalCol2 = (v2 - 1) % n
+                    // se verifica dos cosa, que esten en la misma fila (linea 103 pieza 1) y que esten en ORDEN INVERTIDO
+                    if (goalRow2 == row && goalCol1 > goalCol2) {
+                        conflict += 2// si hay conflicto entonces se le suman 2
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        AnimatedVisibility(
-            visible = dimension > 0,
-            enter = fadeIn() + expandVertically()
-        ) {
-            Button(
-                onClick = onStartClick,
-                modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text(
-                    text = "¡JUGAR!",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        return (manhattan + conflict)*((if(n==6) 3.58 else if (n==5) 3.2 else if (n==4) 3 else 2.4)).toInt()
     }
-}
-
-@Composable
-fun PlayingScreen(
-    moves: Int,
-    goal: Int,
-    dimension: Int,
-    board: List<Int?>,
-    selectedIndex: Int?,
-    onCellClick: (Int) -> Unit,
-    onResetClick: () -> Unit,
-    onFinishClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // Stats cards
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatCard(
-                title = "Movimientos",
-                value = moves.toString(),
-                color = MaterialTheme.colorScheme.primary
-            )
-            StatCard(
-                title = "Meta mínima",
-                value = goal.toString(),
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-
-        // Grid del puzzle
-        Card(
-            modifier = Modifier
-                .padding(vertical = 24.dp)
-                .shadow(8.dp, RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            )
-        ) {
-            PuzzleGrid(
-                board = board,
-                selectedIndex = selectedIndex,
-                dimension = dimension,
-                onCellClick = onCellClick
-            )
-        }
-
-        // Botones de acción
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            OutlinedButton(
-                onClick = onResetClick,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Reiniciar")
-            }
-
-            OutlinedButton(
-                onClick = onFinishClick,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("Terminar")
-            }
-        }
-    }
-}
-
-@Composable
-fun StatCard(
-    title: String,
-    value: String,
-    color: Color
-) {
-    Card(
-        modifier = Modifier
-            .width(140.dp)
-            .height(80.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.1f)
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 2.dp,
-            color = color.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = color.copy(alpha = 0.7f)
-            )
-        }
-    }
-}
-
-@Composable
-fun PuzzleGrid(
-    board: List<Int?>,
-    selectedIndex: Int?,
-    dimension: Int,
-    onCellClick: (Int) -> Unit
-) {
-    val boardSize = 320.dp
-    val cellSize = (boardSize - (4.dp * (dimension - 1))) / dimension
-
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(dimension),
-        modifier = Modifier
-            .size(boardSize)
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        itemsIndexed(board) { index, value ->
-            PuzzleCell(
-                value = value,
-                selected = selectedIndex == index,
-                cellSize = cellSize,
-                onClick = { onCellClick(index) }
-            )
-        }
-    }
-}
-
-@Composable
-fun PuzzleCell(
-    value: Int?,
-    selected: Boolean,
-    onClick: () -> Unit,
-    cellSize: Dp
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (selected) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "scale"
-    )
-
-    val backgroundColor = when {
-        value == 0 -> Color.Transparent
-        selected -> MaterialTheme.colorScheme.tertiaryContainer
-        else -> MaterialTheme.colorScheme.primaryContainer
-    }
-
-    val contentColor = when {
-        value == 0 -> Color.Transparent
-        selected -> MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.onPrimaryContainer
-    }
-
-    Box(
-        modifier = Modifier
-            .size(cellSize)
-            .scale(scale)
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                color = backgroundColor,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .then(
-                if (value != 0) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
-            )
-            .shadow(
-                elevation = if (value != 0) 4.dp else 0.dp,
-                shape = RoundedCornerShape(8.dp),
-                clip = false
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (value != 0) {
-            Text(
-                text = value.toString(),
-                fontSize = when {
-                    cellSize < 50.dp -> 16.sp
-                    cellSize < 70.dp -> 20.sp
-                    else -> 24.sp
-                },
-                fontWeight = FontWeight.Bold,
-                color = contentColor
-            )
-        }
-    }
-}
-
-@Composable
-fun FinishScreen(
-    moves: Int,
-    goal: Int,
-    onNewGameClick: () -> Unit
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "rotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Icono de celebración
-        Box(
-            modifier = Modifier.size(150.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.sweepGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.secondary,
-                                MaterialTheme.colorScheme.tertiary,
-                                MaterialTheme.colorScheme.primary
-                            )
-                        ),
-                        shape = RoundedCornerShape(percent = 50)
-                    )
-                    .graphicsLayer { rotationZ = rotation }
-            )
-
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = Color.White
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = "¡Felicidades!",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Text(
-            text = "Has completado el puzzle",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Resultados
-        Card(
-            modifier = Modifier.fillMaxWidth(0.9f),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ResultRow("Tus movimientos", moves.toString())
-                Divider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                ResultRow("Meta mínima", goal.toString())
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                val (message, color) = when {
-                    moves < goal -> "¡Superaste la meta! 🎉" to MaterialTheme.colorScheme.primary
-                    moves > goal -> "Casi lo logras, ¡sigue practicando!" to MaterialTheme.colorScheme.secondary
-                    else -> "¡Igualaste la meta perfectamente!" to MaterialTheme.colorScheme.tertiary
-                }
-
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = color,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = onNewGameClick,
-            modifier = Modifier
-                .fillMaxWidth(0.8f)
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Text(
-                text = "NUEVO JUEGO",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun ResultRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+    fun isSolved(board: List<Int?>, n: Int): Boolean {
+        //compara el estado del tablero con la grilla original (sin desordenar)
+        return board == createGrid(n)
     }
 }
