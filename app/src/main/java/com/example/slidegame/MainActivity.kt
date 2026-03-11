@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -58,17 +59,12 @@ fun SliderGame() {
     val logic = remember { Puzzle_Logic() }
     var gameState by remember { mutableStateOf(GameStateEnum.START) }
     var board by remember { mutableStateOf(logic.createGrid(0)) }
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
     var moves by remember { mutableIntStateOf(0) }
     var goal by remember { mutableIntStateOf(0) }
     var expanded by remember { mutableStateOf(false) }
 
     val items = listOf("3x3", "4x4", "5x5", "6x6")
     var dimension by remember { mutableIntStateOf(0) }
-
-    // Animación de entrada
-    val enterTransition = fadeIn(animationSpec = tween(500)) +
-            slideInVertically(animationSpec = tween(500))
 
     Scaffold(
         topBar = {
@@ -113,16 +109,14 @@ fun SliderGame() {
                     goal = goal,
                     dimension = dimension,
                     board = board,
-                    selectedIndex = selectedIndex,
                     onCellClick = { index ->
-                        if (selectedIndex == null) {
-                            selectedIndex = index
-                        } else {
-                            if (logic.isValidMove(selectedIndex!!, index, dimension, board.elementAt(index))) {
-                                board = logic.swap(board, selectedIndex!!, index)
-                                moves++
+                        val emptyIndex = board.indexOf(0)
+                        if (emptyIndex != -1 && logic.isValidMove(index, emptyIndex, dimension, board[emptyIndex])) {
+                            board = logic.swap(board, index, emptyIndex)
+                            moves++
+                            if (logic.isSolved(board, dimension)) {
+                                gameState = GameStateEnum.FINISH
                             }
-                            selectedIndex = null
                         }
                     },
                     onResetClick = {
@@ -184,7 +178,6 @@ fun StartScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icono animado
         Box(
             modifier = Modifier
                 .size(120.dp)
@@ -228,7 +221,6 @@ fun StartScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Selector de dificultad mejorado
         Card(
             modifier = Modifier.fillMaxWidth(0.8f),
             shape = RoundedCornerShape(16.dp),
@@ -341,7 +333,6 @@ fun PlayingScreen(
     goal: Int,
     dimension: Int,
     board: List<Int?>,
-    selectedIndex: Int?,
     onCellClick: (Int) -> Unit,
     onResetClick: () -> Unit,
     onFinishClick: () -> Unit
@@ -353,7 +344,6 @@ fun PlayingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Stats cards
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -370,7 +360,6 @@ fun PlayingScreen(
             )
         }
 
-        // Grid del puzzle
         Card(
             modifier = Modifier
                 .padding(vertical = 24.dp)
@@ -382,13 +371,11 @@ fun PlayingScreen(
         ) {
             PuzzleGrid(
                 board = board,
-                selectedIndex = selectedIndex,
                 dimension = dimension,
                 onCellClick = onCellClick
             )
         }
 
-        // Botones de acción
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -464,7 +451,6 @@ fun StatCard(
 @Composable
 fun PuzzleGrid(
     board: List<Int?>,
-    selectedIndex: Int?,
     dimension: Int,
     onCellClick: (Int) -> Unit
 ) {
@@ -482,7 +468,6 @@ fun PuzzleGrid(
         itemsIndexed(board) { index, value ->
             PuzzleCell(
                 value = value,
-                selected = selectedIndex == index,
                 cellSize = cellSize,
                 onClick = { onCellClick(index) }
             )
@@ -493,32 +478,22 @@ fun PuzzleGrid(
 @Composable
 fun PuzzleCell(
     value: Int?,
-    selected: Boolean,
     onClick: () -> Unit,
     cellSize: Dp
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (selected) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "scale"
-    )
-
     val backgroundColor = when {
         value == 0 -> Color.Transparent
-        selected -> MaterialTheme.colorScheme.tertiaryContainer
         else -> MaterialTheme.colorScheme.primaryContainer
     }
 
     val contentColor = when {
         value == 0 -> Color.Transparent
-        selected -> MaterialTheme.colorScheme.onTertiaryContainer
         else -> MaterialTheme.colorScheme.onPrimaryContainer
     }
 
     Box(
         modifier = Modifier
             .size(cellSize)
-            .scale(scale)
             .clip(RoundedCornerShape(8.dp))
             .background(
                 color = backgroundColor,
@@ -585,7 +560,6 @@ fun FinishScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icono de celebración
         Box(
             modifier = Modifier.size(150.dp),
             contentAlignment = Alignment.Center
@@ -632,7 +606,6 @@ fun FinishScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Resultados
         Card(
             modifier = Modifier.fillMaxWidth(0.9f),
             shape = RoundedCornerShape(20.dp),
@@ -646,7 +619,7 @@ fun FinishScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 ResultRow("Tus movimientos", moves.toString())
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.padding(vertical = 12.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
